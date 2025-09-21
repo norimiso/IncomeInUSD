@@ -286,6 +286,21 @@ app.get('*', (c) => {
               border-radius: 12px;
               padding: 16px;
             }
+            .chart-toolbar {
+              display: flex;
+              align-items: center;
+              justify-content: flex-end;
+              gap: 12px;
+              margin-bottom: 8px;
+              font-size: 13px;
+              color: #cbd5f5;
+            }
+            .chart-toolbar label {
+              display: inline-flex;
+              align-items: center;
+              gap: 6px;
+              cursor: pointer;
+            }
             .footnote {
               margin-top: 16px;
               font-size: 12px;
@@ -413,8 +428,23 @@ app.get('*', (c) => {
                   })
                 : null;
 
+            const refreshChartData = () => {
+              if (!chart) {
+                return;
+              }
+
+              let startIndex = dataset.findIndex((value) => value > 0);
+              if (startIndex === -1) {
+                startIndex = 0;
+              }
+
+              chart.data.labels = rates.slice(startIndex).map((item) => item.year);
+              chart.data.datasets[0].data = dataset.slice(startIndex);
+            };
+
             const updateChart = () => {
               if (chart) {
+                refreshChartData();
                 chart.update('none');
               }
             };
@@ -454,6 +484,11 @@ app.get('*', (c) => {
                 input.addEventListener('input', handleInput);
               });
 
+            refreshChartData();
+            if (chart) {
+              chart.update();
+            }
+
             const legacyButton = document.getElementById('showLegacyYears');
             const legacySection = document.getElementById('legacyYearSection');
             if (legacyButton instanceof HTMLButtonElement && legacySection) {
@@ -462,6 +497,17 @@ app.get('*', (c) => {
                 legacyButton.setAttribute('aria-expanded', 'true');
                 legacyButton.disabled = true;
                 legacyButton.textContent = '1980〜1999年を表示中';
+              });
+            }
+
+            const axisToggle = document.getElementById('toggleYAxis');
+            if (axisToggle instanceof HTMLInputElement && chart) {
+              axisToggle.addEventListener('change', () => {
+                const hidden = axisToggle.checked;
+                chart.options.scales.y.display = !hidden;
+                chart.options.scales.y.grid.display = !hidden;
+                chart.options.scales.y.ticks.display = !hidden;
+                chart.update('none');
               });
             }
           </script>
@@ -502,6 +548,12 @@ app.get('*', (c) => {
               </table>
             </div>
             <div class="chart-wrapper">
+              <div class="chart-toolbar">
+                <label>
+                  <input type="checkbox" id="toggleYAxis" />
+                  縦軸を非表示
+                </label>
+              </div>
               <canvas id="incomeChart" height="240"></canvas>
             </div>
             <p class="footnote">
