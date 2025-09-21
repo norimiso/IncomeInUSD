@@ -137,16 +137,16 @@ type RateGroup = {
 };
 
 const rateGroups: readonly RateGroup[] = [
-  { id: '2025', label: '2025', start: 2025, end: 2025, defaultOpen: true },
-  { id: '2020-2024', label: '2020〜2024', start: 2020, end: 2024, defaultOpen: true },
-  { id: '2015-2019', label: '2015〜2019', start: 2015, end: 2019, defaultOpen: true },
-  { id: '2010-2014', label: '2010〜2014', start: 2010, end: 2014 },
-  { id: '2005-2009', label: '2005〜2009', start: 2005, end: 2009 },
-  { id: '2000-2004', label: '2000〜2004', start: 2000, end: 2004 },
-  { id: '1995-1999', label: '1995〜1999', start: 1995, end: 1999 },
-  { id: '1990-1994', label: '1990〜1994', start: 1990, end: 1994 },
-  { id: '1985-1989', label: '1985〜1989', start: 1985, end: 1989 },
   { id: '1980-1984', label: '1980〜1984', start: 1980, end: 1984 },
+  { id: '1985-1989', label: '1985〜1989', start: 1985, end: 1989 },
+  { id: '1990-1994', label: '1990〜1994', start: 1990, end: 1994 },
+  { id: '1995-1999', label: '1995〜1999', start: 1995, end: 1999 },
+  { id: '2000-2004', label: '2000〜2004', start: 2000, end: 2004 },
+  { id: '2005-2009', label: '2005〜2009', start: 2005, end: 2009 },
+  { id: '2010-2014', label: '2010〜2014', start: 2010, end: 2014 },
+  { id: '2015-2019', label: '2015〜2019', start: 2015, end: 2019, defaultOpen: true },
+  { id: '2020-2024', label: '2020〜2024', start: 2020, end: 2024, defaultOpen: true },
+  { id: '2025', label: '2025', start: 2025, end: 2025, defaultOpen: true },
 ];
 
 const faviconSvg = encodeURIComponent(
