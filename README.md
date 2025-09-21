@@ -1,0 +1,24 @@
+# Income in USD
+
+Cloudflare Workers + Hono で動作する、年収(万円)を1980-2025年の平均為替レートでUSD換算するシンプルなサイトです。テーブルに年収を入力すると、自動的にドル換算と棒グラフが更新されます。
+
+## 開発
+
+```bash
+npm install
+npm run dev
+```
+
+`npm run dev` で Wrangler のローカル開発サーバが起動します。ブラウザで表示すると入力フォームとグラフを確認できます。
+
+## デプロイ
+
+```bash
+npm run deploy
+```
+
+Wrangler にログイン済みであれば Cloudflare Workers へデプロイできます。
+
+## データについて
+
+為替レートは提供された1980-2025年の平均 USD/JPY を使用しており、実際のレートとは異なる場合があります。

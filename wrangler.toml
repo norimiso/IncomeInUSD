@@ -1,0 +1,6 @@
+name = "income-in-usd"
+main = "src/app.ts"
+compatibility_date = "2025-09-21"
+
+[vars]
+SITE_TITLE = "Income in USD"

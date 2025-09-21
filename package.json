@@ -1,0 +1,36 @@
+{
+  "name": "incomeinusd",
+  "version": "0.1.0",
+  "description": "1980-2025 income converter built with Hono on Cloudflare Workers.",
+  "type": "module",
+  "main": "src/app.ts",
+  "scripts": {
+    "dev": "wrangler dev",
+    "preview": "wrangler dev --remote",
+    "deploy": "wrangler deploy"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/norimiso/IncomeInUSD.git"
+  },
+  "keywords": [
+    "hono",
+    "cloudflare",
+    "workers",
+    "income"
+  ],
+  "author": "",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/norimiso/IncomeInUSD/issues"
+  },
+  "homepage": "https://github.com/norimiso/IncomeInUSD#readme",
+  "dependencies": {
+    "hono": "^4.9.8"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250921.0",
+    "typescript": "^5.9.2",
+    "wrangler": "^4.38.0"
+  }
+}
