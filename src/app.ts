@@ -336,17 +336,32 @@ app.get('*', (c) => {
             .chart-toolbar {
               display: flex;
               align-items: center;
-              justify-content: flex-end;
-              gap: 12px;
+              flex-wrap: wrap;
+              justify-content: space-between;
+              gap: 16px;
               margin-bottom: 8px;
               font-size: 13px;
               color: #cbd5f5;
             }
-            .chart-toolbar label {
+            .chart-toolbar__group {
+              display: inline-flex;
+              align-items: center;
+              gap: 12px;
+            }
+            .chart-toggle {
               display: inline-flex;
               align-items: center;
               gap: 6px;
               cursor: pointer;
+            }
+            .chart-toggle input,
+            #toggleYAxis {
+              accent-color: #38bdf8;
+            }
+            .chart-toolbar__divider {
+              width: 1px;
+              height: 18px;
+              background: rgba(148, 163, 184, 0.35);
             }
             .footnote {
               margin-top: 16px;
@@ -387,7 +402,8 @@ app.get('*', (c) => {
               }).format(value);
             };
 
-            const dataset = rates.map(() => 0);
+            const datasetUsd = rates.map(() => 0);
+            const datasetJpy = rates.map(() => 0);
             const usdCells = new Map();
             document.querySelectorAll('[data-role="usd"]').forEach((cell) => {
               const index = Number(cell.dataset.index);
@@ -403,14 +419,7 @@ app.get('*', (c) => {
                     type: 'bar',
                     data: {
                       labels: rates.map((item) => item.year),
-                      datasets: [
-                        {
-                          label: 'Annual income (USD)',
-                          data: dataset,
-                          backgroundColor: '#38bdf8',
-                          borderRadius: 6,
-                        },
-                      ],
+                      datasets: [],
                     },
                     options: {
                       responsive: true,
@@ -426,7 +435,7 @@ app.get('*', (c) => {
                             display: false,
                           },
                         },
-                        y: {
+                        yUSD: {
                           beginAtZero: true,
                           ticks: {
                             color: '#cbd5f5',
@@ -438,6 +447,32 @@ app.get('*', (c) => {
                           },
                           grid: {
                             color: 'rgba(148, 163, 184, 0.2)',
+                          },
+                          position: 'left',
+                          title: {
+                            display: true,
+                            text: 'USD',
+                            color: '#cbd5f5',
+                          },
+                        },
+                        yJPY: {
+                          beginAtZero: true,
+                          position: 'right',
+                          ticks: {
+                            color: '#fbbf24',
+                            callback: (value) =>
+                              new Intl.NumberFormat('ja-JP', {
+                                notation: 'compact',
+                                maximumFractionDigits: 1,
+                              }).format(value),
+                          },
+                          grid: {
+                            drawOnChartArea: false,
+                          },
+                          title: {
+                            display: true,
+                            text: 'JPY',
+                            color: '#fbbf24',
                           },
                         },
                       },
@@ -452,18 +487,58 @@ app.get('*', (c) => {
                   })
                 : null;
 
+            const state = {
+              showUsd: true,
+              showJpy: false,
+              axisHidden: false,
+            };
+
             const refreshChartData = () => {
               if (!chart) {
                 return;
               }
 
-              let startIndex = dataset.findIndex((value) => value > 0);
+              let startIndex = datasetUsd.findIndex(
+                (value, index) => value > 0 || datasetJpy[index] > 0,
+              );
               if (startIndex === -1) {
                 startIndex = 0;
               }
 
-              chart.data.labels = rates.slice(startIndex).map((item) => item.year);
-              chart.data.datasets[0].data = dataset.slice(startIndex);
+              const labels = rates.slice(startIndex).map((item) => item.year);
+              chart.data.labels = labels;
+
+              const datasets = [];
+              if (state.showUsd) {
+                datasets.push({
+                  label: 'Annual income (USD)',
+                  data: datasetUsd.slice(startIndex),
+                  backgroundColor: '#38bdf8',
+                  borderRadius: 6,
+                  yAxisID: 'yUSD',
+                });
+              }
+              if (state.showJpy) {
+                datasets.push({
+                  label: '年収 (JPY)',
+                  data: datasetJpy.slice(startIndex),
+                  backgroundColor: '#f97316',
+                  borderRadius: 6,
+                  yAxisID: 'yJPY',
+                });
+              }
+
+              chart.data.datasets = datasets;
+
+              chart.options.scales.yUSD.display = state.showUsd && !state.axisHidden;
+              chart.options.scales.yUSD.ticks.display = !state.axisHidden && state.showUsd;
+              chart.options.scales.yUSD.grid.display = !state.axisHidden && state.showUsd;
+              chart.options.scales.yUSD.title.display = state.showUsd && !state.axisHidden;
+
+              chart.options.scales.yJPY.display = state.showJpy && !state.axisHidden;
+              chart.options.scales.yJPY.ticks.display = !state.axisHidden && state.showJpy;
+              chart.options.scales.yJPY.title.display = state.showJpy && !state.axisHidden;
+              chart.options.scales.yJPY.grid.display = false;
             };
 
             const updateChart = () => {
@@ -489,7 +564,8 @@ app.get('*', (c) => {
 
               const manYen = Number.parseFloat(input.value);
               if (!Number.isFinite(manYen) || manYen <= 0) {
-                dataset[index] = 0;
+                datasetUsd[index] = 0;
+                datasetJpy[index] = 0;
                 usdCell.textContent = '-';
                 updateChart();
                 return;
@@ -497,7 +573,8 @@ app.get('*', (c) => {
 
               const yen = manYen * yenPerMan;
               const usd = yen / rate;
-              dataset[index] = usd;
+              datasetUsd[index] = usd;
+              datasetJpy[index] = yen;
               usdCell.textContent = formatUsd(usd);
               updateChart();
             };
@@ -515,10 +592,40 @@ app.get('*', (c) => {
             if (axisToggle instanceof HTMLInputElement && chart) {
               axisToggle.addEventListener('change', () => {
                 const hidden = axisToggle.checked;
-                chart.options.scales.y.display = !hidden;
-                chart.options.scales.y.grid.display = !hidden;
-                chart.options.scales.y.ticks.display = !hidden;
-                chart.update('none');
+                state.axisHidden = hidden;
+                updateChart();
+              });
+            }
+
+            const usdToggle = document.getElementById('toggleUsd');
+            if (usdToggle instanceof HTMLInputElement) {
+              state.showUsd = usdToggle.checked;
+              usdToggle.addEventListener('change', () => {
+                state.showUsd = usdToggle.checked;
+                if (!state.showUsd && !state.showJpy) {
+                  state.showJpy = true;
+                  const toggle = document.getElementById('toggleJpy');
+                  if (toggle instanceof HTMLInputElement) {
+                    toggle.checked = true;
+                  }
+                }
+                updateChart();
+              });
+            }
+
+            const jpyToggle = document.getElementById('toggleJpy');
+            if (jpyToggle instanceof HTMLInputElement) {
+              state.showJpy = jpyToggle.checked;
+              jpyToggle.addEventListener('change', () => {
+                state.showJpy = jpyToggle.checked;
+                if (!state.showUsd && !state.showJpy) {
+                  state.showUsd = true;
+                  const toggle = document.getElementById('toggleUsd');
+                  if (toggle instanceof HTMLInputElement) {
+                    toggle.checked = true;
+                  }
+                }
+                updateChart();
               });
             }
           </script>
@@ -564,10 +671,23 @@ app.get('*', (c) => {
             </div>
             <div class="chart-wrapper">
               <div class="chart-toolbar">
-                <label>
-                  <input type="checkbox" id="toggleYAxis" />
-                  縦軸を非表示
-                </label>
+                <div class="chart-toolbar__group">
+                  <label class="chart-toggle">
+                    <input type="checkbox" id="toggleUsd" checked />
+                    USD (換算)
+                  </label>
+                  <label class="chart-toggle">
+                    <input type="checkbox" id="toggleJpy" />
+                    円 (入力値)
+                  </label>
+                </div>
+                <div class="chart-toolbar__group">
+                  <div class="chart-toolbar__divider" aria-hidden="true"></div>
+                  <label class="chart-toggle">
+                    <input type="checkbox" id="toggleYAxis" />
+                    縦軸を非表示
+                  </label>
+                </div>
               </div>
               <canvas id="incomeChart" height="240"></canvas>
             </div>
