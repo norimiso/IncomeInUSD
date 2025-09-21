@@ -128,8 +128,26 @@ const ratesWithIndex: RateWithIndex[] = expandedRates.map((entry, index) => ({
   index,
 }));
 
-const modernRates = ratesWithIndex.filter((item) => item.year >= 2000);
-const legacyRates = ratesWithIndex.filter((item) => item.year < 2000);
+type RateGroup = {
+  id: string;
+  label: string;
+  start: number;
+  end: number;
+  defaultOpen?: boolean;
+};
+
+const rateGroups: readonly RateGroup[] = [
+  { id: '2025', label: '2025', start: 2025, end: 2025, defaultOpen: true },
+  { id: '2020-2024', label: '2020〜2024', start: 2020, end: 2024, defaultOpen: true },
+  { id: '2015-2019', label: '2015〜2019', start: 2015, end: 2019, defaultOpen: true },
+  { id: '2010-2014', label: '2010〜2014', start: 2010, end: 2014 },
+  { id: '2005-2009', label: '2005〜2009', start: 2005, end: 2009 },
+  { id: '2000-2004', label: '2000〜2004', start: 2000, end: 2004 },
+  { id: '1995-1999', label: '1995〜1999', start: 1995, end: 1999 },
+  { id: '1990-1994', label: '1990〜1994', start: 1990, end: 1994 },
+  { id: '1985-1989', label: '1985〜1989', start: 1985, end: 1989 },
+  { id: '1980-1984', label: '1980〜1984', start: 1980, end: 1984 },
+];
 
 const faviconSvg = encodeURIComponent(
   '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="12" fill="#0f172a"/><text x="50%" y="58%" font-size="40" text-anchor="middle" fill="#38bdf8" font-family="Inter, sans-serif">$</text></svg>',
@@ -205,32 +223,61 @@ app.get('*', (c) => {
               line-height: 1.6;
               color: #cbd5f5;
             }
-            .table-wrapper {
-              margin-bottom: 24px;
-              overflow-x: auto;
-            }
-            .table-actions {
+            .table-groups {
               display: flex;
-              justify-content: flex-start;
-              margin-bottom: 16px;
+              flex-direction: column;
+              gap: 12px;
+              margin-bottom: 24px;
+            }
+            .year-group {
+              border: 1px solid rgba(148, 163, 184, 0.25);
+              border-radius: 12px;
+              background: rgba(30, 41, 59, 0.45);
+              overflow: hidden;
+            }
+            .year-group[open] {
+              background: rgba(30, 41, 59, 0.55);
+            }
+            .year-group summary {
+              cursor: pointer;
+              padding: 14px 18px;
+              font-weight: 600;
+              display: flex;
+              align-items: center;
+              justify-content: space-between;
+              gap: 12px;
+            }
+            .year-group summary::-webkit-details-marker {
+              display: none;
+            }
+            .year-group summary::after {
+              content: '\u25BE';
+              font-size: 12px;
+              transition: transform 0.2s ease;
+            }
+            .year-group[open] summary::after {
+              transform: rotate(-180deg);
+            }
+            .year-group__content {
+              padding: 0 18px 18px;
             }
             table {
               width: 100%;
               border-collapse: collapse;
               overflow: hidden;
-              border-radius: 12px;
+              border-radius: 8px;
             }
             thead {
-              background: rgba(30, 41, 59, 0.8);
+              background: rgba(30, 41, 59, 0.75);
             }
             th,
             td {
-              padding: 12px 16px;
+              padding: 10px 16px;
               text-align: left;
-              border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+              border-bottom: 1px solid rgba(148, 163, 184, 0.12);
             }
             tbody tr:nth-child(even) {
-              background: rgba(30, 41, 59, 0.35);
+              background: rgba(15, 23, 42, 0.25);
             }
             input[type='number'] {
               width: 100%;
@@ -309,29 +356,6 @@ app.get('*', (c) => {
             @media (max-width: 640px) {
               body {
                 padding: 24px 12px 48px;
-              }
-              table,
-              thead,
-              tbody,
-              th,
-              td,
-              tr {
-                display: block;
-              }
-              thead {
-                display: none;
-              }
-              tbody tr {
-                margin-bottom: 16px;
-                background: rgba(30, 41, 59, 0.5);
-                border-radius: 12px;
-              }
-              tbody td {
-                border: none;
-                padding: 10px 14px;
-              }
-              tbody td:first-child {
-                font-weight: 600;
               }
               input[type='number'] {
                 margin-top: 8px;
@@ -478,26 +502,13 @@ app.get('*', (c) => {
               updateChart();
             };
 
-            document
-              .querySelectorAll('input[data-year]')
-              .forEach((input) => {
-                input.addEventListener('input', handleInput);
-              });
+            document.querySelectorAll('input[data-year]').forEach((input) => {
+              input.addEventListener('input', handleInput);
+            });
 
             refreshChartData();
             if (chart) {
               chart.update();
-            }
-
-            const legacyButton = document.getElementById('showLegacyYears');
-            const legacySection = document.getElementById('legacyYearSection');
-            if (legacyButton instanceof HTMLButtonElement && legacySection) {
-              legacyButton.addEventListener('click', () => {
-                legacySection.hidden = false;
-                legacyButton.setAttribute('aria-expanded', 'true');
-                legacyButton.disabled = true;
-                legacyButton.textContent = '1980〜1999年を表示中';
-              });
             }
 
             const axisToggle = document.getElementById('toggleYAxis');
@@ -518,34 +529,38 @@ app.get('*', (c) => {
             <p>
               1980年から2025年の年収を万円単位で入力すると、当時の平均為替レートでUSD換算した金額と棒グラフを自動で表示します。入力した年のみ棒グラフに反映されます。
             </p>
-            <div class="table-wrapper">
-              ${legacyRates.length
-                ? html`<div class="table-actions">
-                    <button
-                      type="button"
-                      id="showLegacyYears"
-                      aria-expanded="false"
-                      aria-controls="legacyYearSection"
-                    >
-                      1980〜1999年を追加
-                    </button>
-                  </div>`
-                : null}
-              <table>
-                <thead>
-                  <tr>
-                    <th>Year</th>
-                    <th>年収 (万円)</th>
-                    <th>Annual income (USD)</th>
-                  </tr>
-                </thead>
-                <tbody id="legacyYearSection" hidden>
-                  ${legacyRates.map((entry) => renderRow(entry))}
-                </tbody>
-                <tbody>
-                  ${modernRates.map((entry) => renderRow(entry))}
-                </tbody>
-              </table>
+            <div class="table-groups">
+              ${rateGroups
+                .map((group) => {
+                  const groupRates = ratesWithIndex.filter(
+                    (item) => item.year >= group.start && item.year <= group.end,
+                  );
+                  if (groupRates.length === 0) {
+                    return null;
+                  }
+                  return html`<details
+                    class="year-group"
+                    data-group="${group.id}"
+                    ${group.defaultOpen ? 'open' : ''}
+                  >
+                    <summary>${group.label}</summary>
+                    <div class="year-group__content">
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>Year</th>
+                            <th>年収 (万円)</th>
+                            <th>Annual income (USD)</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          ${groupRates.map((entry) => renderRow(entry))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </details>`;
+                })
+                .filter(Boolean)}
             </div>
             <div class="chart-wrapper">
               <div class="chart-toolbar">
