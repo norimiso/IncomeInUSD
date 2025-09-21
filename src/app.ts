@@ -5,7 +5,12 @@ type Env = {
   SITE_TITLE: string;
 };
 
-const exchangeRates = [
+type RateEntry = {
+  year: number;
+  rate: number;
+};
+
+const rawRates: readonly RateEntry[] = [
   { year: 1980, rate: 226.7408 },
   { year: 1981, rate: 220.5358 },
   { year: 1982, rate: 249.0767 },
@@ -38,6 +43,101 @@ const exchangeRates = [
   { year: 2025, rate: 148.2193 },
 ] as const;
 
+const START_YEAR = 1980;
+const END_YEAR = 2025;
+
+const createExpandedRates = (
+  entries: readonly RateEntry[],
+  startYear: number,
+  endYear: number,
+): RateEntry[] => {
+  const sorted = [...entries].sort((a, b) => a.year - b.year);
+  const map = new Map(sorted.map((item) => [item.year, item.rate]));
+  const span = endYear - startYear + 1;
+
+  const previous: Array<RateEntry | null> = new Array(span).fill(null);
+  let lastKnown: RateEntry | null = null;
+  for (let year = startYear; year <= endYear; year++) {
+    const maybeRate = map.get(year);
+    if (maybeRate !== undefined) {
+      lastKnown = { year, rate: maybeRate };
+    }
+    previous[year - startYear] = lastKnown;
+  }
+
+  const upcoming: Array<RateEntry | null> = new Array(span).fill(null);
+  let nextKnown: RateEntry | null = null;
+  for (let year = endYear; year >= startYear; year--) {
+    const maybeRate = map.get(year);
+    if (maybeRate !== undefined) {
+      nextKnown = { year, rate: maybeRate };
+    }
+    upcoming[year - startYear] = nextKnown;
+  }
+
+  const expanded: RateEntry[] = [];
+  for (let year = startYear; year <= endYear; year++) {
+    const direct = map.get(year);
+    if (direct !== undefined) {
+      expanded.push({ year, rate: Number(direct.toFixed(4)) });
+      continue;
+    }
+
+    const prev = previous[year - startYear];
+    const next = upcoming[year - startYear];
+
+    let rate: number;
+    if (prev && next && prev.year !== next.year) {
+      const spanYears = next.year - prev.year;
+      const offset = year - prev.year;
+      rate = prev.rate + ((next.rate - prev.rate) * offset) / spanYears;
+    } else if (prev) {
+      rate = prev.rate;
+    } else if (next) {
+      rate = next.rate;
+    } else {
+      rate = 0;
+    }
+
+    expanded.push({ year, rate: Number(rate.toFixed(4)) });
+  }
+
+  return expanded.sort((a, b) => a.year - b.year);
+};
+
+const expandedRates = createExpandedRates(rawRates, START_YEAR, END_YEAR);
+
+type RateWithIndex = RateEntry & { index: number };
+
+const ratesWithIndex: RateWithIndex[] = expandedRates.map((entry, index) => ({
+  ...entry,
+  index,
+}));
+
+const modernRates = ratesWithIndex.filter((item) => item.year >= 2000);
+const legacyRates = ratesWithIndex.filter((item) => item.year < 2000);
+
+const faviconSvg = encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="12" fill="#0f172a"/><text x="50%" y="58%" font-size="40" text-anchor="middle" fill="#38bdf8" font-family="Inter, sans-serif">$</text></svg>',
+);
+
+const renderRow = (entry: RateWithIndex) => html`<tr data-year="${entry.year}">
+    <td>${entry.year}</td>
+    <td>
+      <input
+        type="number"
+        min="0"
+        inputmode="decimal"
+        placeholder="0"
+        aria-label="${entry.year}年の年収 (万円)"
+        data-year="${entry.year}"
+        data-rate="${entry.rate.toFixed(4)}"
+        data-index="${entry.index}"
+      />
+    </td>
+    <td class="usd-value" data-role="usd" data-index="${entry.index}" aria-live="polite">-</td>
+  </tr>`;
+
 const app = new Hono<{ Bindings: Env }>();
 
 app.get('/', (c) => {
@@ -51,18 +151,10 @@ app.get('/', (c) => {
           <meta name="viewport" content="width=device-width, initial-scale=1" />
           <title>${title}</title>
           <link
-            rel="preconnect"
-            href="https://fonts.googleapis.com"
-          />
-          <link
-            rel="preconnect"
-            href="https://fonts.gstatic.com"
-            crossorigin
-          />
-          <link
-            href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap"
             rel="stylesheet"
+            href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap"
           />
+          <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,${faviconSvg}" />
           <style>
             :root {
               color-scheme: light dark;
@@ -82,9 +174,9 @@ app.get('/', (c) => {
               padding: 32px 16px 64px;
             }
             .card {
-              width: min(960px, 100%);
+              width: min(980px, 100%);
               background: rgba(15, 23, 42, 0.85);
-              backdrop-filter: blur(10px);
+              backdrop-filter: blur(12px);
               border: 1px solid rgba(148, 163, 184, 0.2);
               border-radius: 16px;
               padding: 32px;
@@ -99,16 +191,20 @@ app.get('/', (c) => {
               line-height: 1.6;
               color: #cbd5f5;
             }
-            table {
-              width: 100%;
-              border-collapse: collapse;
-              margin-bottom: 24px;
-              overflow: hidden;
-              border-radius: 12px;
-            }
             .table-wrapper {
               margin-bottom: 24px;
               overflow-x: auto;
+            }
+            .table-actions {
+              display: flex;
+              justify-content: flex-start;
+              margin-bottom: 16px;
+            }
+            table {
+              width: 100%;
+              border-collapse: collapse;
+              overflow: hidden;
+              border-radius: 12px;
             }
             thead {
               background: rgba(30, 41, 59, 0.8);
@@ -120,7 +216,7 @@ app.get('/', (c) => {
               border-bottom: 1px solid rgba(148, 163, 184, 0.1);
             }
             tbody tr:nth-child(even) {
-              background: rgba(30, 41, 59, 0.4);
+              background: rgba(30, 41, 59, 0.35);
             }
             input[type='number'] {
               width: 100%;
@@ -135,6 +231,35 @@ app.get('/', (c) => {
               outline: none;
               border-color: #38bdf8;
               box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.2);
+            }
+            button {
+              font-family: inherit;
+              font-size: 14px;
+              font-weight: 600;
+              color: #0f172a;
+              background: #38bdf8;
+              border: none;
+              border-radius: 999px;
+              padding: 10px 18px;
+              cursor: pointer;
+              transition: transform 0.2s ease, box-shadow 0.2s ease;
+            }
+            button:hover {
+              transform: translateY(-1px);
+              box-shadow: 0 8px 20px rgba(56, 189, 248, 0.35);
+            }
+            button:focus-visible {
+              outline: 2px solid #f8fafc;
+              outline-offset: 2px;
+            }
+            button:disabled {
+              opacity: 0.65;
+              cursor: default;
+              box-shadow: none;
+              transform: none;
+            }
+            #legacyYearSection[hidden] {
+              display: none;
             }
             .usd-value {
               font-variant-numeric: tabular-nums;
@@ -186,7 +311,13 @@ app.get('/', (c) => {
           </style>
           <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js" defer></script>
           <script type="module" defer>
-            const rates = ${JSON.stringify(exchangeRates)};
+            const rates = ${JSON.stringify(
+              ratesWithIndex.map((entry) => ({
+                year: entry.year,
+                rate: Number(entry.rate.toFixed(4)),
+                index: entry.index,
+              })),
+            )};
 
             const yenPerMan = 10000;
 
@@ -202,108 +333,142 @@ app.get('/', (c) => {
             };
 
             const dataset = rates.map(() => 0);
+            const usdCells = new Map();
+            document.querySelectorAll('[data-role="usd"]').forEach((cell) => {
+              const index = Number(cell.dataset.index);
+              if (!Number.isNaN(index)) {
+                usdCells.set(index, cell);
+              }
+            });
 
             const ctx = document.getElementById('incomeChart');
-            let chart;
+            const chart =
+              ctx instanceof HTMLCanvasElement
+                ? new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                      labels: rates.map((item) => item.year),
+                      datasets: [
+                        {
+                          label: 'Annual income (USD)',
+                          data: dataset,
+                          backgroundColor: '#38bdf8',
+                          borderRadius: 6,
+                        },
+                      ],
+                    },
+                    options: {
+                      responsive: true,
+                      animation: false,
+                      scales: {
+                        x: {
+                          ticks: {
+                            color: '#cbd5f5',
+                            autoSkip: true,
+                            maxRotation: 0,
+                          },
+                          grid: {
+                            display: false,
+                          },
+                        },
+                        y: {
+                          beginAtZero: true,
+                          ticks: {
+                            color: '#cbd5f5',
+                            callback: (value) =>
+                              new Intl.NumberFormat('en-US', {
+                                notation: 'compact',
+                                maximumFractionDigits: 1,
+                              }).format(value),
+                          },
+                          grid: {
+                            color: 'rgba(148, 163, 184, 0.2)',
+                          },
+                        },
+                      },
+                      plugins: {
+                        legend: {
+                          labels: {
+                            color: '#e2e8f0',
+                          },
+                        },
+                      },
+                    },
+                  })
+                : null;
 
-            const ensureChart = () => {
-              if (chart) return chart;
-              chart = new Chart(ctx, {
-                type: 'bar',
-                data: {
-                  labels: rates.map((item) => item.year),
-                  datasets: [
-                    {
-                      label: 'Annual income (USD)',
-                      data: dataset,
-                      backgroundColor: '#38bdf8',
-                    },
-                  ],
-                },
-                options: {
-                  responsive: true,
-                  animation: false,
-                  scales: {
-                    x: {
-                      ticks: {
-                        color: '#cbd5f5',
-                      },
-                      grid: {
-                        display: false,
-                      },
-                    },
-                    y: {
-                      beginAtZero: true,
-                      ticks: {
-                        color: '#cbd5f5',
-                        callback: (value) =>
-                          new Intl.NumberFormat('en-US', {
-                            notation: 'compact',
-                            maximumFractionDigits: 1,
-                          }).format(value),
-                      },
-                      grid: {
-                        color: 'rgba(148, 163, 184, 0.2)',
-                      },
-                    },
-                  },
-                  plugins: {
-                    legend: {
-                      labels: {
-                        color: '#e2e8f0',
-                      },
-                    },
-                  },
-                },
-              });
-              return chart;
+            const updateChart = () => {
+              if (chart) {
+                chart.update('none');
+              }
             };
 
             const handleInput = (event) => {
               const input = event.target;
-              const year = Number(input.dataset.year);
-              const rate = Number(input.dataset.rate);
-              const rowIndex = rates.findIndex((item) => item.year === year);
-              const usdCell = document.querySelector(
-                '[data-usd="' + year + '"]'
-              );
+              if (!(input instanceof HTMLInputElement)) {
+                return;
+              }
 
-              if (rowIndex === -1 || !usdCell) {
+              const index = Number(input.dataset.index);
+              const rate = Number(input.dataset.rate);
+              const usdCell = usdCells.get(index);
+
+              if (!Number.isFinite(index) || !Number.isFinite(rate) || !usdCell) {
                 return;
               }
 
               const manYen = Number.parseFloat(input.value);
               if (!Number.isFinite(manYen) || manYen <= 0) {
-                dataset[rowIndex] = 0;
+                dataset[index] = 0;
                 usdCell.textContent = '-';
-                ensureChart().update();
+                updateChart();
                 return;
               }
 
               const yen = manYen * yenPerMan;
               const usd = yen / rate;
-              dataset[rowIndex] = usd;
+              dataset[index] = usd;
               usdCell.textContent = formatUsd(usd);
-              ensureChart().update();
+              updateChart();
             };
 
-            const inputs = Array.from(
-              document.querySelectorAll('input[data-year]')
-            );
-            inputs.forEach((input) => {
-              input.addEventListener('input', handleInput);
-            });
+            document
+              .querySelectorAll('input[data-year]')
+              .forEach((input) => {
+                input.addEventListener('input', handleInput);
+              });
 
-            ensureChart();
+            const legacyButton = document.getElementById('showLegacyYears');
+            const legacySection = document.getElementById('legacyYearSection');
+            if (legacyButton instanceof HTMLButtonElement && legacySection) {
+              legacyButton.addEventListener('click', () => {
+                legacySection.hidden = false;
+                legacyButton.setAttribute('aria-expanded', 'true');
+                legacyButton.disabled = true;
+                legacyButton.textContent = '1980〜1999年を表示中';
+              });
+            }
           </script>
         </head>
         <body>
           <main class="card">
             <h1>${title}</h1>
             <p>
-              1980年から2025年の年収を万円単位で入力すると、当時の平均為替レートでUSD換算した金額と棒グラフを自動で表示します。
+              1980年から2025年の年収を万円単位で入力すると、当時の平均為替レートでUSD換算した金額と棒グラフを自動で表示します。入力した年のみ棒グラフに反映されます。
             </p>
             <div class="table-wrapper">
+              ${legacyRates.length
+                ? html`<div class="table-actions">
+                    <button
+                      type="button"
+                      id="showLegacyYears"
+                      aria-expanded="false"
+                      aria-controls="legacyYearSection"
+                    >
+                      1980〜1999年を追加
+                    </button>
+                  </div>`
+                : null}
               <table>
                 <thead>
                   <tr>
@@ -312,32 +477,19 @@ app.get('/', (c) => {
                     <th>Annual income (USD)</th>
                   </tr>
                 </thead>
+                <tbody id="legacyYearSection" hidden>
+                  ${legacyRates.map((entry) => renderRow(entry))}
+                </tbody>
                 <tbody>
-                  ${exchangeRates.map(
-                    (entry) => html`<tr>
-                        <td>${entry.year}</td>
-                        <td>
-                          <input
-                            type="number"
-                            min="0"
-                            inputmode="decimal"
-                            placeholder="0"
-                            aria-label="${entry.year}年の年収 (万円)"
-                            data-year="${entry.year}"
-                            data-rate="${entry.rate}"
-                          />
-                        </td>
-                        <td class="usd-value" data-usd="${entry.year}">-</td>
-                      </tr>`
-                  )}
+                  ${modernRates.map((entry) => renderRow(entry))}
                 </tbody>
               </table>
             </div>
             <div class="chart-wrapper">
-              <canvas id="incomeChart" height="220"></canvas>
+              <canvas id="incomeChart" height="240"></canvas>
             </div>
             <p class="footnote">
-              為替レートは各年の平均USD/JPYレートを使用しています。数値は提供データに基づき、実際のレートとは異なる場合があります。
+              為替レートは提供データを元に不足年を前後のデータから補完しています。表示される値は簡易的な参考値です。
             </p>
           </main>
         </body>
