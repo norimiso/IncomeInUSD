@@ -154,7 +154,7 @@ const renderRow = (entry: RateWithIndex) => html`<tr data-year="${entry.year}">
 
 const app = new Hono<{ Bindings: Env }>();
 
-app.get('/', (c) => {
+app.get('*', (c) => {
   const title = c.env?.SITE_TITLE ?? 'Income in USD';
 
   return c.html(
