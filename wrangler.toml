@@ -1,6 +1,7 @@
 name = "income-in-usd"
 main = "src/app.ts"
 compatibility_date = "2025-09-21"
+account_id = "364b8cf40d6c98329314dfac09238032"
 
 [vars]
 SITE_TITLE = "Income in USD"
