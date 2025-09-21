@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { html } from 'hono/html';
+import { html, raw } from 'hono/html';
 
 type Env = {
   SITE_TITLE: string;
@@ -325,12 +325,14 @@ app.get('/', (c) => {
           </style>
           <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js" defer></script>
           <script type="module" defer>
-            const rates = ${JSON.stringify(
-              ratesWithIndex.map((entry) => ({
-                year: entry.year,
-                rate: Number(entry.rate.toFixed(4)),
-                index: entry.index,
-              })),
+            const rates = ${raw(
+              JSON.stringify(
+                ratesWithIndex.map((entry) => ({
+                  year: entry.year,
+                  rate: Number(entry.rate.toFixed(4)),
+                  index: entry.index,
+                })),
+              ),
             )};
 
             const yenPerMan = 10000;
